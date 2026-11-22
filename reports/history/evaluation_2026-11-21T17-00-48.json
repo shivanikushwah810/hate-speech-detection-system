@@ -1,0 +1,330 @@
+{
+  "generated_at": "2026-11-21T17:00:48+00:00",
+  "environment": {
+    "python": "3.12.3",
+    "scikit_learn": "1.9.1",
+    "numpy": "2.5.4",
+    "platform": "Linux"
+  },
+  "dataset": {
+    "file": "dataset.csv",
+    "sha256_prefix": "fcb8bc7c6812",
+    "text_column": "tweet",
+    "label_column": "class",
+    "rows_read": 24783,
+    "rows_skipped_empty_text": 0,
+    "rows_skipped_missing_label": 0,
+    "class_distribution_raw": {
+      "Hate Speech": 1430,
+      "Offensive": 19190,
+      "Normal": 4163
+    },
+    "label_mapping": {
+      "0": "Hate Speech",
+      "1": "Offensive",
+      "2": "Normal"
+    },
+    "rows_used_after_dedup": 24423,
+    "duplicates_or_empty_removed": 360,
+    "duplicate_label_conflicts": 37,
+    "test_size": 0.2,
+    "random_state": 42,
+    "split": "stratified",
+    "n_train": 19538,
+    "n_test": 4885,
+    "class_distribution_total": {
+      "Hate Speech": 1397,
+      "Offensive": 18923,
+      "Normal": 4103
+    },
+    "class_distribution_train": {
+      "Hate Speech": 1118,
+      "Offensive": 15138,
+      "Normal": 3282
+    },
+    "class_distribution_test": {
+      "Hate Speech": 279,
+      "Offensive": 3785,
+      "Normal": 821
+    }
+  },
+  "production_model_status": {
+    "loaded": true,
+    "installed_sklearn": "1.9.1",
+    "pickle_sklearn": "1.9.1",
+    "version_mismatch": false,
+    "predict_proba_ok": true,
+    "predict_proba_error": null,
+    "vocab_size": 25000,
+    "estimated_training_docs": 19538,
+    "message": "Production model loaded and working.",
+    "level": "ok",
+    "meta_present": true,
+    "meta_matches_files": true
+  },
+  "models": {
+    "production_ml": {
+      "label": "Production ML model (TF-IDF + Logistic Regression)",
+      "description": "models/adam_classifier.pkl + models/adam_vectorizer.pkl, predictions taken as argmax of the linear scores.",
+      "kind": "production",
+      "order": 1,
+      "held_out_guarantee": true,
+      "held_out_note": "Verified: models/production_model_meta.json shows this model was fitted on the TRAINING split only (same dataset fingerprint, seed and split sizes as this evaluation), and the model files match the recorded checksums. The test texts were never seen in training.",
+      "active_in_app": true,
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.8648925281473899,
+        "macro_precision": 0.6903054741353801,
+        "macro_recall": 0.7865252828311379,
+        "macro_f1": 0.7268353390362959,
+        "weighted_precision": 0.8935452933368531,
+        "weighted_recall": 0.8648925281473899,
+        "weighted_f1": 0.8747518798688524,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.34675615212527966,
+            "recall": 0.5555555555555556,
+            "f1": 0.42699724517906334,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.9624454148471616,
+            "recall": 0.873447820343461,
+            "f1": 0.9157894736842105,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.7617148554336989,
+            "recall": 0.9305724725943971,
+            "f1": 0.8377192982456141,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            155,
+            90,
+            34
+          ],
+          [
+            274,
+            3306,
+            205
+          ],
+          [
+            18,
+            39,
+            764
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.3468    0.5556    0.4270       279\n   Offensive     0.9624    0.8734    0.9158      3785\n      Normal     0.7617    0.9306    0.8377       821\n\n    accuracy                         0.8649      4885\n   macro avg     0.6903    0.7865    0.7268      4885\nweighted avg     0.8935    0.8649    0.8748      4885\n"
+      }
+    },
+    "production_hybrid": {
+      "label": "Production local pipeline (ML + keyword rules + overrides)",
+      "description": "HateSpeechPredictor._hybrid_predict with the current production model - exactly what Quick Analyze runs when no Claude API key is set.",
+      "kind": "production",
+      "order": 0,
+      "held_out_guarantee": false,
+      "held_out_note": "The ML part is held-out (verified, see Production ML model), but the hand-written keyword rules and overrides in predictor.py were designed outside this pipeline; it cannot be proven that no test text influenced them. Treat these numbers as \"how the app behaves on this dataset\", not as a pure generalisation estimate.",
+      "active_in_app": true,
+      "prediction_paths": {
+        "rule_override": 669,
+        "ml_blend": 4216,
+        "keyword_only": 0
+      },
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.5402251791197543,
+        "macro_precision": 0.5118674524323842,
+        "macro_recall": 0.6690091376837067,
+        "macro_f1": 0.4807915269996785,
+        "weighted_precision": 0.8170981056096339,
+        "weighted_recall": 0.5402251791197543,
+        "weighted_f1": 0.5735261134904537,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.25184094256259204,
+            "recall": 0.6129032258064516,
+            "f1": 0.3569937369519833,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.9673726388093875,
+            "recall": 0.4464993394980185,
+            "f1": 0.6109906001446131,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.31638877592517284,
+            "recall": 0.9476248477466505,
+            "f1": 0.474390243902439,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            171,
+            39,
+            69
+          ],
+          [
+            483,
+            1690,
+            1612
+          ],
+          [
+            25,
+            18,
+            778
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.2518    0.6129    0.3570       279\n   Offensive     0.9674    0.4465    0.6110      3785\n      Normal     0.3164    0.9476    0.4744       821\n\n    accuracy                         0.5402      4885\n   macro avg     0.5119    0.6690    0.4808      4885\nweighted avg     0.8171    0.5402    0.5735      4885\n"
+      }
+    },
+    "legacy_ml": {
+      "label": "Original model, preserved (TF-IDF + LR, saved with scikit-learn 1.8.0)",
+      "description": "models/legacy_sklearn_1.8.0/ - the model that shipped with the project before the scikit-learn compatibility fix. Loaded with a version warning.",
+      "kind": "legacy",
+      "order": 2,
+      "held_out_guarantee": false,
+      "held_out_note": "The original model's training data is not part of this project (its vocabulary suggests only ~600 training texts), so held-out status cannot be proven. It is kept only for comparison; it is no longer the production model.",
+      "active_in_app": false,
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.5175025588536336,
+        "macro_precision": 0.3828828648312963,
+        "macro_recall": 0.4103959755597552,
+        "macro_f1": 0.36377533252107924,
+        "weighted_precision": 0.6894452076013166,
+        "weighted_recall": 0.5175025588536336,
+        "weighted_f1": 0.5715550378364641,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.06630581867388363,
+            "recall": 0.17562724014336917,
+            "f1": 0.0962671905697446,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.8302419354838709,
+            "recall": 0.5439894319682959,
+            "f1": 0.6573024740622506,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.25210084033613445,
+            "recall": 0.5115712545676004,
+            "f1": 0.33775633293124246,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            49,
+            155,
+            75
+          ],
+          [
+            555,
+            2059,
+            1171
+          ],
+          [
+            135,
+            266,
+            420
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.0663    0.1756    0.0963       279\n   Offensive     0.8302    0.5440    0.6573      3785\n      Normal     0.2521    0.5116    0.3378       821\n\n    accuracy                         0.5175      4885\n   macro avg     0.3829    0.4104    0.3638      4885\nweighted avg     0.6894    0.5175    0.5716      4885\n"
+      }
+    },
+    "legacy_hybrid": {
+      "label": "Original local pipeline (original ML model + keyword rules)",
+      "description": "The app pipeline as it behaved BEFORE the retraining, for before/after comparison.",
+      "kind": "legacy",
+      "order": 3,
+      "held_out_guarantee": false,
+      "held_out_note": "The original model's training data is not part of this project (its vocabulary suggests only ~600 training texts), so held-out status cannot be proven. It is kept only for comparison; it is no longer the production model.",
+      "active_in_app": false,
+      "prediction_paths": {
+        "rule_override": 669,
+        "ml_blend": 4216,
+        "keyword_only": 0
+      },
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.5281473899692938,
+        "macro_precision": 0.5005963028616512,
+        "macro_recall": 0.6498482239252171,
+        "macro_f1": 0.46958651361166853,
+        "weighted_precision": 0.8004246686118348,
+        "weighted_recall": 0.5281473899692938,
+        "weighted_f1": 0.5624658959785269,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.2488822652757079,
+            "recall": 0.5985663082437276,
+            "f1": 0.35157894736842105,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.9487179487179487,
+            "recall": 0.43989431968295906,
+            "f1": 0.6010830324909747,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.30418869459129727,
+            "recall": 0.9110840438489647,
+            "f1": 0.4560975609756098,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            167,
+            42,
+            70
+          ],
+          [
+            479,
+            1665,
+            1641
+          ],
+          [
+            25,
+            48,
+            748
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.2489    0.5986    0.3516       279\n   Offensive     0.9487    0.4399    0.6011      3785\n      Normal     0.3042    0.9111    0.4561       821\n\n    accuracy                         0.5281      4885\n   macro avg     0.5006    0.6498    0.4696      4885\nweighted avg     0.8004    0.5281    0.5625      4885\n"
+      }
+    }
+  },
+  "notes": [
+    "Claude API and BiLSTM routes are not evaluated (not local/deterministic).",
+    "Pipeline results mix the ML model with hand-written rules; use the Model Comparison page for a clean algorithm-vs-algorithm test.",
+    "Labels follow the app convention: 0=Hate Speech, 1=Offensive, 2=Normal."
+  ]
+}

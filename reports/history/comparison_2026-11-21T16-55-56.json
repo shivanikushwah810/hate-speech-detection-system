@@ -1,0 +1,430 @@
+{
+  "generated_at": "2026-11-21T16:55:56+00:00",
+  "environment": {
+    "python": "3.12.3",
+    "scikit_learn": "1.9.1",
+    "numpy": "2.5.4",
+    "platform": "Linux"
+  },
+  "dataset": {
+    "file": "dataset.csv",
+    "sha256_prefix": "fcb8bc7c6812",
+    "text_column": "tweet",
+    "label_column": "class",
+    "rows_read": 24783,
+    "rows_skipped_empty_text": 0,
+    "rows_skipped_missing_label": 0,
+    "class_distribution_raw": {
+      "Hate Speech": 1430,
+      "Offensive": 19190,
+      "Normal": 4163
+    },
+    "label_mapping": {
+      "0": "Hate Speech",
+      "1": "Offensive",
+      "2": "Normal"
+    },
+    "rows_used_after_dedup": 24423,
+    "duplicates_or_empty_removed": 360,
+    "duplicate_label_conflicts": 37,
+    "test_size": 0.2,
+    "random_state": 42,
+    "split": "stratified",
+    "n_train": 19538,
+    "n_test": 4885,
+    "class_distribution_total": {
+      "Hate Speech": 1397,
+      "Offensive": 18923,
+      "Normal": 4103
+    },
+    "class_distribution_train": {
+      "Hate Speech": 1118,
+      "Offensive": 15138,
+      "Normal": 3282
+    },
+    "class_distribution_test": {
+      "Hate Speech": 279,
+      "Offensive": 3785,
+      "Normal": 821
+    }
+  },
+  "vectorizer": {
+    "type": "TfidfVectorizer",
+    "max_features": 25000,
+    "ngram_range": [
+      1,
+      3
+    ],
+    "sublinear_tf": true,
+    "max_df": 0.95,
+    "token_pattern": "\\b\\w+\\b",
+    "n_features": 25000,
+    "fit_time_sec": 1.313,
+    "fitted_on": "training split only"
+  },
+  "models": {
+    "Logistic Regression": {
+      "order": 1,
+      "slug": "logistic_regression",
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.8648925281473899,
+        "macro_precision": 0.6903054741353801,
+        "macro_recall": 0.7865252828311379,
+        "macro_f1": 0.7268353390362959,
+        "weighted_precision": 0.8935452933368531,
+        "weighted_recall": 0.8648925281473899,
+        "weighted_f1": 0.8747518798688524,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.34675615212527966,
+            "recall": 0.5555555555555556,
+            "f1": 0.42699724517906334,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.9624454148471616,
+            "recall": 0.873447820343461,
+            "f1": 0.9157894736842105,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.7617148554336989,
+            "recall": 0.9305724725943971,
+            "f1": 0.8377192982456141,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            155,
+            90,
+            34
+          ],
+          [
+            274,
+            3306,
+            205
+          ],
+          [
+            18,
+            39,
+            764
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.3468    0.5556    0.4270       279\n   Offensive     0.9624    0.8734    0.9158      3785\n      Normal     0.7617    0.9306    0.8377       821\n\n    accuracy                         0.8649      4885\n   macro avg     0.6903    0.7865    0.7268      4885\nweighted avg     0.8935    0.8649    0.8748      4885\n"
+      },
+      "train_time_sec": 0.436,
+      "predict_time_sec": 0.001,
+      "converged": true,
+      "supports_predict_proba": true,
+      "compatibility": "Linear model on TF-IDF features (lbfgs solver, balanced class weights). Gives class probabilities, so it can drop into the current app.",
+      "saved_model_file": "models/candidates/logistic_regression.pkl",
+      "saved_meta_file": "models/candidates/logistic_regression.meta.json",
+      "model_size_mb": 0.83,
+      "params": {
+        "C": 1.0,
+        "class_weight": "balanced",
+        "dual": false,
+        "fit_intercept": true,
+        "intercept_scaling": 1,
+        "l1_ratio": 0.0,
+        "max_iter": 1000,
+        "n_jobs": null,
+        "penalty": "deprecated",
+        "random_state": 42,
+        "solver": "lbfgs",
+        "tol": 0.0001,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "macro_f1_ci95": [
+        0.7080732297346005,
+        0.7452180452550557
+      ],
+      "diff_vs_best_ci95": null,
+      "clearly_worse_than_best": null
+    },
+    "Multinomial Naive Bayes": {
+      "order": 2,
+      "slug": "multinomial_nb",
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.8137154554759468,
+        "macro_precision": 0.9155614607564401,
+        "macro_recall": 0.4144431846619909,
+        "macro_f1": 0.42839333329485035,
+        "weighted_precision": 0.8409324675272282,
+        "weighted_recall": 0.8137154554759468,
+        "weighted_f1": 0.756883724704017,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 1.0,
+            "recall": 0.0035842293906810036,
+            "f1": 0.007142857142857143,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.8080051369863014,
+            "recall": 0.9973579920739762,
+            "f1": 0.8927515667494383,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.9386792452830188,
+            "recall": 0.24238733252131547,
+            "f1": 0.38528557599225555,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            1,
+            275,
+            3
+          ],
+          [
+            0,
+            3775,
+            10
+          ],
+          [
+            0,
+            622,
+            199
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     1.0000    0.0036    0.0071       279\n   Offensive     0.8080    0.9974    0.8928      3785\n      Normal     0.9387    0.2424    0.3853       821\n\n    accuracy                         0.8137      4885\n   macro avg     0.9156    0.4144    0.4284      4885\nweighted avg     0.8409    0.8137    0.7569      4885\n"
+      },
+      "train_time_sec": 0.006,
+      "predict_time_sec": 0.0009,
+      "converged": true,
+      "supports_predict_proba": true,
+      "compatibility": "Fast probabilistic model that works on non-negative TF-IDF features. Has no class_weight option, so class imbalance is not compensated.",
+      "saved_model_file": "models/candidates/multinomial_nb.pkl",
+      "saved_meta_file": "models/candidates/multinomial_nb.meta.json",
+      "model_size_mb": 0.94,
+      "params": {
+        "alpha": 1.0,
+        "class_prior": null,
+        "fit_prior": true,
+        "force_alpha": true
+      },
+      "macro_f1_ci95": [
+        0.41400170855794066,
+        0.4420814193687009
+      ],
+      "diff_vs_best_ci95": [
+        0.2744408620834752,
+        0.3210104977904737
+      ],
+      "clearly_worse_than_best": true
+    },
+    "Linear SVM": {
+      "order": 3,
+      "slug": "linear_svm",
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.8898669396110542,
+        "macro_precision": 0.728173559646187,
+        "macro_recall": 0.7257328379717937,
+        "macro_f1": 0.7255066212791669,
+        "weighted_precision": 0.8871843874570537,
+        "weighted_recall": 0.8898669396110542,
+        "weighted_f1": 0.8881183369460377,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.43829787234042555,
+            "recall": 0.36917562724014336,
+            "f1": 0.40077821011673154,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.9372340425531915,
+            "recall": 0.9310435931307794,
+            "f1": 0.9341285619615639,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.8089887640449438,
+            "recall": 0.876979293544458,
+            "f1": 0.8416130917592052,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            103,
+            152,
+            24
+          ],
+          [
+            115,
+            3524,
+            146
+          ],
+          [
+            17,
+            84,
+            720
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.4383    0.3692    0.4008       279\n   Offensive     0.9372    0.9310    0.9341      3785\n      Normal     0.8090    0.8770    0.8416       821\n\n    accuracy                         0.8899      4885\n   macro avg     0.7282    0.7257    0.7255      4885\nweighted avg     0.8872    0.8899    0.8881      4885\n"
+      },
+      "train_time_sec": 0.272,
+      "predict_time_sec": 0.0012,
+      "converged": true,
+      "supports_predict_proba": false,
+      "compatibility": "Strong on high-dimensional sparse text. Gives no probabilities, so it cannot replace the production model (which blends probabilities) without extra calibration.",
+      "saved_model_file": "models/candidates/linear_svm.pkl",
+      "saved_meta_file": "models/candidates/linear_svm.meta.json",
+      "model_size_mb": 0.79,
+      "params": {
+        "C": 1.0,
+        "class_weight": "balanced",
+        "dual": "auto",
+        "fit_intercept": true,
+        "intercept_scaling": 1,
+        "loss": "squared_hinge",
+        "max_iter": 5000,
+        "multi_class": "ovr",
+        "penalty": "l2",
+        "random_state": 42,
+        "tol": 0.0001,
+        "verbose": 0
+      },
+      "macro_f1_ci95": [
+        0.7065973150532818,
+        0.7453802552565773
+      ],
+      "diff_vs_best_ci95": [
+        -0.014174129478162503,
+        0.017347915764575856
+      ],
+      "clearly_worse_than_best": false
+    },
+    "Random Forest": {
+      "order": 4,
+      "slug": "random_forest",
+      "metrics": {
+        "n_test": 4885,
+        "accuracy": 0.8833162743091095,
+        "macro_precision": 0.7803700470180118,
+        "macro_recall": 0.5987833376970023,
+        "macro_f1": 0.6199905998218389,
+        "weighted_precision": 0.8679098163664889,
+        "weighted_recall": 0.8833162743091095,
+        "weighted_f1": 0.8620979583573986,
+        "per_class": {
+          "Hate Speech": {
+            "precision": 0.6,
+            "recall": 0.07526881720430108,
+            "f1": 0.1337579617834395,
+            "support": 279
+          },
+          "Offensive": {
+            "precision": 0.8916626272418807,
+            "recall": 0.971994715984148,
+            "f1": 0.9300973328277082,
+            "support": 3785
+          },
+          "Normal": {
+            "precision": 0.8494475138121547,
+            "recall": 0.7490864799025578,
+            "f1": 0.7961165048543689,
+            "support": 821
+          }
+        },
+        "labels": [
+          "Hate Speech",
+          "Offensive",
+          "Normal"
+        ],
+        "confusion_matrix": [
+          [
+            21,
+            242,
+            16
+          ],
+          [
+            13,
+            3679,
+            93
+          ],
+          [
+            1,
+            205,
+            615
+          ]
+        ],
+        "classification_report": "              precision    recall  f1-score   support\n\n Hate Speech     0.6000    0.0753    0.1338       279\n   Offensive     0.8917    0.9720    0.9301      3785\n      Normal     0.8494    0.7491    0.7961       821\n\n    accuracy                         0.8833      4885\n   macro avg     0.7804    0.5988    0.6200      4885\nweighted avg     0.8679    0.8833    0.8621      4885\n"
+      },
+      "train_time_sec": 55.251,
+      "predict_time_sec": 0.4222,
+      "converged": true,
+      "supports_predict_proba": true,
+      "compatibility": "200 decision trees (balanced class weights). Handles non-linear patterns but is usually the slowest and largest model on sparse 25,000-feature TF-IDF text.",
+      "saved_model_file": "models/candidates/random_forest.pkl",
+      "saved_meta_file": "models/candidates/random_forest.meta.json",
+      "model_size_mb": 48.77,
+      "params": {
+        "bootstrap": true,
+        "ccp_alpha": 0.0,
+        "class_weight": "balanced_subsample",
+        "criterion": "gini",
+        "max_depth": null,
+        "max_features": "sqrt",
+        "max_leaf_nodes": null,
+        "max_samples": null,
+        "min_impurity_decrease": 0.0,
+        "min_samples_leaf": 1,
+        "min_samples_split": 2,
+        "min_weight_fraction_leaf": 0.0,
+        "monotonic_cst": null,
+        "n_estimators": 200,
+        "n_jobs": -1,
+        "oob_score": false,
+        "random_state": 42,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "macro_f1_ci95": [
+        0.6007165956009226,
+        0.6380727728577607
+      ],
+      "diff_vs_best_ci95": [
+        0.08487135378512992,
+        0.12912334287153746
+      ],
+      "clearly_worse_than_best": true
+    }
+  },
+  "best_model": "Logistic Regression",
+  "selection_criterion": "highest macro-F1 on the held-out test split (weighted-F1 only as tie-breaker)",
+  "best_is_statistically_clear": false,
+  "tied_with_best": [
+    "Linear SVM"
+  ],
+  "notes": [
+    "Single stratified split, single run: small differences can be noise (see the bootstrap 95% intervals).",
+    "Timings depend on this computer and one run each.",
+    "No hyper-parameter tuning was done; defaults / production settings were used.",
+    "Random Forest uses a fixed 200 trees (not tuned); it is the slowest and largest model.",
+    "The production model was NOT replaced by this script. See promote_model.py."
+  ]
+}

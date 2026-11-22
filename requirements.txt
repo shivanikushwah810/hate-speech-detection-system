@@ -1,0 +1,13 @@
+# Python 3.11 or newer is required by scikit-learn 1.9 (developed and tested on Python 3.12).
+flask>=3.0,<4
+numpy>=2.0
+# EXACT pin: the model files in models/ were (re)created with this version by retrain_production.py.
+# Pickles are tied to the scikit-learn version, so keep this in sync with models/production_model_meta.json.
+# If you change it, run:  python retrain_production.py --yes   and   python train_and_compare.py
+scikit-learn==1.9.1
+# scipy and joblib are installed automatically with scikit-learn.
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+anthropic>=0.20.0
+# Optional, only for an extra SHAP cross-check test:  pip install shap

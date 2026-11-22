@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Model Comparison — HateShield AI{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">{% endblock %}
+
+{% block content %}
+<div class="page-wide">
+  <div class="page-header">
+    <h1>// Model Comparison</h1>
+    <p>Logistic Regression vs Multinomial Naive Bayes vs Linear SVM vs Random Forest — same data split, same features, no leakage.</p>
+  </div>
+
+  <div id="banners"></div>
+
+  <div class="card">
+    <div class="row-between">
+      <div class="muted small" style="max-width:640px">
+        Trains all four models on the <b>training split only</b> and tests them on the <b>same held-out test split</b>.
+        Takes about a minute (Random Forest is the slow one). Your production model is <b>not</b> changed.
+      </div>
+      <div class="toolbar">
+        <label for="histSelect" class="muted small">Report:</label>
+        <select id="histSelect" class="hs-select" aria-label="Saved comparison reports"><option value="">Latest report</option></select>
+        <div id="jobSpinner" class="spinner hidden" role="status" aria-label="Running"></div>
+        <a class="btn btn-outline" id="dlBtn" href="/api/reports/comparison/download">⬇ Download JSON</a>
+        <button class="btn btn-primary" id="runBtn" onclick="runComparison()">▶ Run comparison</button>
+      </div>
+    </div>
+    <div id="jobLog" class="job-log hidden"></div>
+  </div>
+
+  <div id="content"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script>
+const METRICS = [
+  { key: 'accuracy',           label: 'Accuracy' },
+  { key: 'macro_precision',    label: 'Precision (macro)' },
+  { key: 'macro_recall',       label: 'Recall (macro)' },
+  { key: 'macro_f1',           label: 'Macro F1-score' },
+  { key: 'weighted_f1',        label: 'Weighted F1-score' },
+];
+
+async function loadHistory() {
+  const h = await HS.api('/api/reports/history/comparison');
+  const sel = document.getElementById('histSelect');
+  const cur = sel.value;
+  sel.innerHTML = HS.historyOptions(h.ok ? h.data.reports : []);
+  sel.value = cur;
+}
+
+async function load(histName) {
+  const url = histName ? `/api/reports/history/comparison/${encodeURIComponent(histName)}` : '/api/comparison/results';
+  const [cr, ds] = await Promise.all([HS.api(url), HS.api('/api/dataset-info')]);
+  const banners = [];
+  if (histName && cr.ok) banners.push(HS.banner('info', `<strong>Archived report.</strong> Viewing a saved run from ${HS.esc(cr.data.report.generated_at || histName)}. Choose “Latest report” to go back.`));
+  if (ds.ok && !ds.data.present) banners.push(HS.banner('warn', `<strong>No dataset found.</strong> ${HS.esc(ds.data.error)}
+      <div style="margin-top:0.6rem"><button class="btn btn-primary" id="dsBtn" onclick="downloadDataset()">⬇ Download dataset</button></div>`));
+  else if (ds.ok && ds.data.present && !ds.data.valid) banners.push(HS.banner('error', `<strong>Dataset problem:</strong> ${HS.esc(ds.data.error)}`));
+  document.getElementById('banners').innerHTML = banners.join('');
+
+  const c = document.getElementById('content');
+  if (!cr.ok) { c.innerHTML = HS.banner('error', 'Could not load comparison data: ' + HS.esc(cr.error)); return; }
+  if (!cr.data.available) {
+    c.innerHTML = `<div class="card"><div class="empty-state"><div class="big">⚖️</div>
+      <p style="margin-bottom:0.6rem">${HS.esc(cr.data.reason)}</p>
+      <p class="small">Or in the terminal: <code>python download_dataset.py</code> then <code>python train_and_compare.py</code></p></div></div>`;
+    return;
+  }
+  render(cr.data.report);
+}
+
+async function downloadDataset() {
+  const ui = { btn: document.getElementById('dsBtn'), spinner: document.getElementById('jobSpinner'),
+               log: document.getElementById('jobLog'), runningText: 'Downloading…' };
+  const final = await HS.runJob('dataset', ui);
+  if (final === 'finished') await load(document.getElementById('histSelect').value);
+  else document.getElementById('banners').insertAdjacentHTML('afterbegin', HS.banner('error',
+    '<strong>Dataset download failed.</strong> See the log below. You can also download it manually — instructions are in <code>data/README.md</code>.'));
+}
+
+function render(R) {
+  const models = R.models;
+  const names = HS.sortedNames(models);
+  const best = R.best_model;
+
+  // best value per column (for highlighting)
+  const topOf = k => Math.max(...names.map(n => models[n].metrics[k]));
+  const cell = (n, k) => {
+    const v = models[n].metrics[k];
+    return `<td class="num${v === topOf(k) ? ' top-cell' : ''}">${HS.pct(v, 2)}</td>`;
+  };
+  const fastest = Math.min(...names.map(n => models[n].train_time_sec));
+  const fmtT = t => t < 1 ? (t * 1000).toFixed(0) + ' ms' : t.toFixed(2) + ' s';
+
+  const rows = names.map(n => {
+    const m = models[n];
+    const ci = m.macro_f1_ci95 ? `<div class="muted small">95% CI ${HS.pct(m.macro_f1_ci95[0], 1)}–${HS.pct(m.macro_f1_ci95[1], 1)}</div>` : '';
+    const flags = [
+      n === best ? '<span class="badge-small good">best macro-F1</span>' : '',
+      m.converged ? '' : '<span class="badge-small bad">did not converge</span>',
+      m.supports_predict_proba ? '' : '<span class="badge-small warn">no probabilities</span>',
+    ].join('');
+    return `<tr class="${n === best ? 'best' : ''}">
+      <td><b>${HS.esc(n)}</b><div style="margin-top:0.25rem">${flags}</div></td>
+      ${cell(n, 'accuracy')}${cell(n, 'macro_precision')}${cell(n, 'macro_recall')}
+      <td class="num${m.metrics.macro_f1 === topOf('macro_f1') ? ' top-cell' : ''}">${HS.pct(m.metrics.macro_f1, 2)}${ci}</td>
+      ${cell(n, 'weighted_f1')}
+      <td class="num${m.train_time_sec === fastest ? ' top-cell' : ''}">${fmtT(m.train_time_sec)}</td></tr>`;
+  }).join('');
+
+  // plain-language verdict
+  const bm = models[best].metrics;
+  const bestAcc = names.reduce((a, b) => models[a].metrics.accuracy >= models[b].metrics.accuracy ? a : b);
+  const bestW = names.reduce((a, b) => models[a].metrics.weighted_f1 >= models[b].metrics.weighted_f1 ? a : b);
+  let verdict = `<strong>Best by macro-F1: ${HS.esc(best)}</strong> (${HS.pct(bm.macro_f1, 2)}). `;
+  if (R.tied_with_best && R.tied_with_best.length) {
+    verdict += `Its lead over <b>${R.tied_with_best.map(HS.esc).join(', ')}</b> is <b>not statistically clear</b> `
+             + `(the 95% bootstrap interval of the difference includes 0), so treat them as roughly tied on macro-F1. `;
+  } else {
+    verdict += 'The bootstrap test shows it is clearly ahead of every other model on macro-F1. ';
+  }
+  if (bestAcc !== best || bestW !== best) {
+    verdict += `Other metrics favour other models — accuracy: <b>${HS.esc(bestAcc)}</b>, weighted-F1: <b>${HS.esc(bestW)}</b>. `;
+  }
+  verdict += 'Pick the model according to what matters for your use case, not just one number.';
+
+  let html = `<div class="banner ${R.best_is_statistically_clear ? 'ok' : 'info'}">${verdict}</div>`;
+
+  html += `<div class="card"><h3>Comparison table (held-out test split)</h3>
+    <div class="table-wrap"><table class="data-table"><thead><tr>
+      <th>Model</th><th class="num">Accuracy</th><th class="num">Precision (macro)</th><th class="num">Recall (macro)</th>
+      <th class="num">Macro F1</th><th class="num">Weighted F1</th><th class="num">Training time</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <p class="muted small" style="margin-top:0.7rem">Green = best in that column. Selection rule: ${HS.esc(R.selection_criterion)}.</p></div>`;
+
+  html += `<div class="grid-2">
+    <div class="card"><h3>Metric comparison</h3>${HS.groupedBars(models, METRICS)}</div>
+    <div class="card"><h3>Training time (log scale)</h3>${HS.timeBars(models, 'train_time_sec')}
+      <p class="muted small" style="margin-top:0.6rem">Bars use a log scale because times differ by ~1000×. Single run on this computer.</p>
+      <h3 style="margin-top:1.6rem">Prediction time on test set</h3>${HS.timeBars(models, 'predict_time_sec')}</div>
+  </div>`;
+
+  html += `<h3 style="font-family:var(--font-mono);font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.5rem 0 1rem">Confusion matrices</h3><div class="grid-2">` +
+    names.map(n => `<div class="card"><h3>${HS.esc(n)}</h3>${HS.confusionMatrix(models[n].metrics.confusion_matrix, models[n].metrics.labels)}</div>`).join('') + '</div>';
+
+  const v = R.vectorizer, d = R.dataset;
+  html += `<div class="grid-2">
+    <div class="card"><h3>Why this comparison is fair (no leakage)</h3><div class="how-to-read"><ul>
+      <li>Duplicate texts were removed <b>before</b> splitting (${d.duplicates_or_empty_removed.toLocaleString()} removed), so one text can't be in both train and test.</li>
+      <li>One <b>stratified</b> split (seed ${d.random_state}) used for every model — class proportions are the same in train and test.</li>
+      <li>TF-IDF (${v.n_features.toLocaleString()} features, 1–3-grams) was <b>fitted on the training split only</b>; the test split was only transformed.</li>
+      <li>All models receive the identical feature matrix and identical cleaning (the app's own <code class="code-inline">_clean_text</code>).</li>
+      <li>No hyper-parameter was tuned on the test set.</li>
+    </ul></div><div style="margin-top:1rem">${HS.datasetSummary(d)}</div></div>
+    <div class="card"><h3>Why these algorithms</h3><div class="how-to-read"><ul>
+      ${names.map(n => `<li><b>${HS.esc(n)}</b> — ${HS.esc(models[n].compatibility)}</li>`).join('')}
+    </ul></div></div>
+  </div>`;
+
+  html += `<div class="card"><h3>Saved models &amp; metadata</h3>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Model</th><th>Model file</th><th class="num">Size</th><th>Metadata file</th><th>Converged</th></tr></thead><tbody>
+    ${names.map(n => { const m = models[n]; return `<tr><td><b>${HS.esc(n)}</b></td>
+      <td><code class="code-inline">${HS.esc(m.saved_model_file || 'not saved')}</code></td>
+      <td class="num">${m.model_size_mb != null ? m.model_size_mb.toFixed(2) + ' MB' : '—'}</td>
+      <td><code class="code-inline">${HS.esc(m.saved_meta_file || '—')}</code></td>
+      <td>${m.converged ? 'yes' : '<span class="badge-small bad">no</span>'}</td></tr>`; }).join('')}
+    </tbody></table></div>
+    <p class="muted small" style="margin-top:0.7rem">Each metadata file records scikit-learn/NumPy versions, hyper-parameters, dataset fingerprint, training time and test metrics, so a saved model can always be traced back to how it was made.</p></div>`;
+
+  html += `<div class="card"><h3>Using a different production model</h3><div class="how-to-read">
+    <p><b>Your current production model was not replaced.</b> This page only reports results. To use a candidate in the app, run the command below in the terminal — it shows a summary, backs up the old files and asks you to type <code class="code-inline">YES</code> before changing anything.</p>
+    <div class="formula">python promote_model.py &lt;slug&gt;</div>
+    <ul>${names.map(n => `<li><code class="code-inline">${HS.esc(models[n].slug)}</code> — ${HS.esc(n)} ${models[n].supports_predict_proba ? '' : '<span class="badge-small warn">cannot be promoted: no probabilities</span>'}</li>`).join('')}</ul>
+    <p style="margin-top:0.6rem">Remember: the app blends the model with keyword rules whose weights were tuned for the old model, so overall behaviour will change after promotion.</p></div></div>`;
+
+  const env = R.environment || {};
+  html += `<p class="muted small">Report created ${HS.esc(R.generated_at)} · Python ${HS.esc(env.python || '?')} · scikit-learn ${HS.esc(env.scikit_learn || '?')}</p>`;
+  (R.notes || []).forEach(n => { html += `<p class="muted small">ℹ ${HS.esc(n)}</p>`; });
+
+  const c = document.getElementById('content');
+  c.innerHTML = html;
+  HS.animateBars(c);
+}
+
+async function runComparison() {
+  const ui = { btn: document.getElementById('runBtn'), spinner: document.getElementById('jobSpinner'),
+               log: document.getElementById('jobLog'), runningText: '⏳ Training 4 models…' };
+  const final = await HS.runJob('comparison', ui);
+  if (final === 'finished') {
+    document.getElementById('histSelect').value = '';
+    await loadHistory();
+    await load('');
+  } else {
+    document.getElementById('banners').insertAdjacentHTML('afterbegin', HS.banner('error',
+      '<strong>The comparison did not finish.</strong> Read the log below for the reason.'));
+  }
+}
+
+document.getElementById('histSelect').onchange = e => load(e.target.value);
+loadHistory().then(() => load(''));
+</script>
+{% endblock %}

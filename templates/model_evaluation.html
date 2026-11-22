@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Model Evaluation — HateShield AI{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">{% endblock %}
+
+{% block content %}
+<div class="page-wide">
+  <div class="page-header">
+    <h1>// Model Evaluation</h1>
+    <p>Real predictions of the model on a labelled test set — nothing here is hardcoded.</p>
+  </div>
+
+  <div id="banners"></div>
+
+  <!-- Controls -->
+  <div class="card">
+    <div class="row-between">
+      <div class="toolbar">
+        <label for="modelSelect" class="muted small">Model:</label>
+        <select id="modelSelect" class="hs-select" disabled><option>Loading…</option></select>
+        <label for="histSelect" class="muted small">Report:</label>
+        <select id="histSelect" class="hs-select" aria-label="Saved evaluation reports"><option value="">Latest report</option></select>
+      </div>
+      <div class="toolbar">
+        <div id="jobSpinner" class="spinner hidden" role="status" aria-label="Running"></div>
+        <a class="btn btn-outline" id="dlBtn" href="/api/reports/evaluation/download">⬇ Download JSON</a>
+        <button class="btn btn-primary" id="runBtn" onclick="runEvaluation()">▶ Run evaluation</button>
+      </div>
+    </div>
+    <div class="muted small" style="margin-top:0.8rem">Evaluates the real production model files on the held-out test split
+      (about 10–20 seconds). Every run is saved and can be re-opened from the <b>Report</b> menu.</div>
+    <div id="modelDesc" class="muted small" style="margin-top:0.8rem"></div>
+    <div id="jobLog" class="job-log hidden"></div>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="card">
+    <h3>How to read these numbers</h3>
+    <div class="how-to-read">
+      <ul>
+        <li><b>Accuracy</b> — share of all test texts classified correctly. Can look good even when a rare class is missed, because the classes are imbalanced.</li>
+        <li><b>Precision</b> — when the model says "Hate Speech", how often is it right? <b>Recall</b> — of all real hate-speech texts, how many did it find?</li>
+        <li><b>F1-score</b> — one number combining precision and recall. <b>Macro F1</b> averages the 3 classes equally (best summary when classes are imbalanced). <b>Weighted F1</b> weights each class by how many texts it has.</li>
+        <li><b>Confusion matrix</b> — rows are the true labels, columns are the predicted labels. Numbers on the diagonal are correct; everything else is a mistake and shows <i>which</i> classes get confused.</li>
+        <li>Only the local model/pipeline is evaluated. The optional Claude API route is not (it is paid and not deterministic).</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script>
+let REPORT = null;
+
+async function loadHistory() {
+  const h = await HS.api('/api/reports/history/evaluation');
+  const sel = document.getElementById('histSelect');
+  const cur = sel.value;
+  sel.innerHTML = HS.historyOptions(h.ok ? h.data.reports : []);
+  sel.value = cur;
+}
+
+async function load(histName) {
+  const evUrl = histName ? `/api/reports/history/evaluation/${encodeURIComponent(histName)}` : '/api/evaluation/results';
+  const [ev, st, ds] = await Promise.all([
+    HS.api(evUrl), HS.api('/api/model-status'), HS.api('/api/dataset-info')
+  ]);
+  const banners = [];
+  const bn = document.getElementById('banners');
+
+  if (!ev.ok) {
+    bn.innerHTML = HS.banner('error', '<strong>Could not load evaluation data.</strong> ' + HS.esc(ev.error));
+    document.getElementById('modelSelect').innerHTML = '<option>—</option>';
+    return;
+  }
+  REPORT = ev.data;
+
+  if (histName) {
+    banners.push(HS.banner('info', `<strong>Archived report.</strong> You are viewing a saved run from ${HS.esc(REPORT.generated_at || histName)}. Choose “Latest report” to go back.`));
+  }
+  if (st.ok && st.data.level !== 'ok') {
+    const s = st.data;
+    banners.push(HS.banner(s.level === 'error' ? 'error' : 'warn',
+      `<strong>Production model status:</strong> ${HS.esc(s.message)}` +
+      (s.predict_proba_error ? `<br><span class="muted small">Technical detail: <code>${HS.esc(s.predict_proba_error)}</code></span>` : '') +
+      '<br><span class="muted small">Fix: <code>python retrain_production.py</code></span>'));
+  } else if (st.ok) {
+    banners.push(HS.banner('ok', `<strong>Production model OK.</strong> Saved with scikit-learn ${HS.esc(st.data.pickle_sklearn)}, installed ${HS.esc(st.data.installed_sklearn)} — versions match.`));
+  }
+  if (ds.ok && !ds.data.present) {
+    banners.push(HS.banner('warn', `<strong>No dataset found.</strong> ${HS.esc(ds.data.error)}
+      <div style="margin-top:0.6rem"><button class="btn btn-primary" id="dsBtn" onclick="downloadDataset()">⬇ Download dataset</button></div>`));
+  } else if (ds.ok && ds.data.present && !ds.data.valid) {
+    banners.push(HS.banner('error', `<strong>Dataset problem:</strong> ${HS.esc(ds.data.error)}`));
+  }
+  (REPORT.warnings || []).forEach(w => banners.push(HS.banner('warn', HS.esc(w))));
+  bn.innerHTML = banners.join('');
+
+  const sel = document.getElementById('modelSelect');
+  if (!REPORT.available) {
+    sel.innerHTML = '<option>No results yet</option>';
+    sel.disabled = true;
+    document.getElementById('content').innerHTML = `<div class="card"><div class="empty-state">
+      <div class="big">📊</div>
+      <p style="margin-bottom:0.6rem">${HS.esc(REPORT.reason || 'No evaluation results yet.')}</p>
+      <p class="small">Or in the terminal: <code>python download_dataset.py</code> then <code>python evaluate_model.py</code></p>
+    </div></div>`;
+    return;
+  }
+
+  const keys = Object.keys(REPORT.models);
+  const rank = { production_hybrid: -4, production_ml: -3, legacy_ml: -2, legacy_hybrid: -1 };
+  const order = k => (k in rank ? rank[k] : (REPORT.models[k].order ?? 0));
+  keys.sort((a, b) => order(a) - order(b));
+  sel.innerHTML = keys.map(k => `<option value="${HS.esc(k)}">${HS.esc(REPORT.models[k].label)}</option>`).join('');
+  sel.disabled = false;
+  sel.onchange = () => render(sel.value);
+  render(keys[0]);
+}
+
+async function downloadDataset() {
+  const btn = document.getElementById('dsBtn');
+  const log = document.getElementById('jobLog');
+  const ui = { btn, spinner: document.getElementById('jobSpinner'), log, runningText: 'Downloading…' };
+  const final = await HS.runJob('dataset', ui);
+  if (final === 'finished') { await load(document.getElementById('histSelect').value); }
+  else document.getElementById('banners').insertAdjacentHTML('afterbegin', HS.banner('error',
+    '<strong>Dataset download failed.</strong> See the log below. You can also download it manually — instructions are in <code>data/README.md</code>.'));
+}
+
+function render(key) {
+  const m = REPORT.models[key];
+  const mt = m.metrics;
+  document.getElementById('modelDesc').innerHTML = HS.esc(m.description || '');
+
+  const heldBadge = m.held_out_guarantee
+    ? '<span class="badge-small good">held-out guaranteed</span>'
+    : '<span class="badge-small warn">held-out NOT guaranteed</span>';
+  const activeBadge = (m.active_in_app === false)
+    ? '<span class="badge-small bad">not active in app (version problem)</span>' : '';
+
+  let html = '';
+  html += `<div class="card"><div class="row-between" style="margin-bottom:1rem">
+      <h3 style="margin:0">Overall metrics</h3><div>${heldBadge}${activeBadge}</div></div>
+      ${HS.metricTiles(mt)}</div>`;
+
+  html += `<div class="banner ${m.held_out_guarantee ? 'ok' : 'warn'}"><strong>Test-set status:</strong> ${HS.esc(m.held_out_note || '')}</div>`;
+
+  html += `<div class="grid-2">
+    <div class="card"><h3>Confusion matrix</h3>${HS.confusionMatrix(mt.confusion_matrix, mt.labels)}</div>
+    <div class="card"><h3>Per-class precision / recall / F1</h3>${HS.perClassBars(mt.per_class)}</div>
+  </div>`;
+
+  if (m.prediction_paths) {
+    const p = m.prediction_paths;
+    const total = (p.rule_override + p.ml_blend + p.keyword_only) || 1;
+    html += `<div class="card"><h3>Which part of the pipeline decided each prediction</h3>
+      ${HS.hbar('Hard rule override (slurs / threats / targeted phrases)', p.rule_override / total, HS.SERIES[3], `${p.rule_override.toLocaleString()} (${HS.pct(p.rule_override / total, 1)})`)}
+      ${HS.hbar('ML model blended with keyword rules', p.ml_blend / total, HS.SERIES[0], `${p.ml_blend.toLocaleString()} (${HS.pct(p.ml_blend / total, 1)})`)}
+      ${HS.hbar('Keyword rules only (ML not used)', p.keyword_only / total, HS.SERIES[2], `${p.keyword_only.toLocaleString()} (${HS.pct(p.keyword_only / total, 1)})`)}
+      <p class="muted small" style="margin-top:0.6rem">If "keyword rules only" is 100%, the ML model is not being used by the app on this computer.</p>
+    </div>`;
+  }
+
+  html += `<div class="card"><h3>Classification report</h3><pre class="report">${HS.esc(mt.classification_report)}</pre></div>`;
+
+  const d = REPORT.dataset;
+  if (d) {
+    const dist = d.class_distribution_test || {};
+    const tot = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+    const bars = HS.CLASS_ORDER.filter(k => dist[k] !== undefined).map(k => [k, dist[k]]).map(([k, v]) =>
+      HS.hbar(k, v / tot, HS.CLASS_COLORS[k] || HS.SERIES[0], `${v.toLocaleString()} (${HS.pct(v / tot, 1)})`)).join('');
+    const env = REPORT.environment || {};
+    html += `<div class="grid-2">
+      <div class="card"><h3>Dataset &amp; validation</h3>${HS.datasetValidation(d)}${HS.datasetSummary(d)}
+        <p class="muted small" style="margin-top:0.8rem">Report created: ${HS.esc(REPORT.generated_at || '')}<br>
+        Python ${HS.esc(env.python || '?')} · scikit-learn ${HS.esc(env.scikit_learn || '?')}</p></div>
+      <div class="card"><h3>Test set class balance</h3>${bars}
+        <p class="muted small">Imbalanced classes are why Macro-F1 matters more than accuracy.</p></div>
+    </div>`;
+  }
+  (REPORT.notes || []).forEach(n => { html += `<p class="muted small" style="margin:-0.5rem 0 0.6rem">ℹ ${HS.esc(n)}</p>`; });
+
+  const c = document.getElementById('content');
+  c.innerHTML = html;
+  HS.animateBars(c);
+}
+
+async function runEvaluation() {
+  const ui = { btn: document.getElementById('runBtn'), spinner: document.getElementById('jobSpinner'),
+               log: document.getElementById('jobLog'), runningText: '⏳ Evaluating…' };
+  const final = await HS.runJob('evaluation', ui);
+  if (final === 'finished') {
+    document.getElementById('histSelect').value = '';
+    await loadHistory();
+    await load('');
+  } else {
+    document.getElementById('banners').insertAdjacentHTML('afterbegin', HS.banner('error',
+      '<strong>The evaluation did not finish.</strong> Read the log below for the reason (for example a missing dataset or model file).'));
+  }
+}
+
+document.getElementById('histSelect').onchange = e => load(e.target.value);
+loadHistory().then(() => load(''));
+</script>
+{% endblock %}

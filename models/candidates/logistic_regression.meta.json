@@ -1,0 +1,55 @@
+{
+  "model": "Logistic Regression",
+  "slug": "logistic_regression",
+  "trained_at": "2026-11-21T17:02:06+00:00",
+  "environment": {
+    "python": "3.12.3",
+    "scikit_learn": "1.9.1",
+    "numpy": "2.5.4",
+    "platform": "Linux"
+  },
+  "dataset": {
+    "file": "dataset.csv",
+    "sha256_prefix": "fcb8bc7c6812",
+    "random_state": 42,
+    "test_size": 0.2,
+    "n_train": 19538,
+    "n_test": 4885
+  },
+  "vectorizer_params": {
+    "max_features": 25000,
+    "ngram_range": [
+      1,
+      3
+    ],
+    "sublinear_tf": true,
+    "max_df": 0.95,
+    "token_pattern": "\\b\\w+\\b"
+  },
+  "params": {
+    "C": 1.0,
+    "class_weight": "balanced",
+    "dual": false,
+    "fit_intercept": true,
+    "intercept_scaling": 1,
+    "l1_ratio": 0.0,
+    "max_iter": 1000,
+    "n_jobs": null,
+    "penalty": "deprecated",
+    "random_state": 42,
+    "solver": "lbfgs",
+    "tol": 0.0001,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "train_time_sec": 0.419,
+  "converged": true,
+  "metrics": {
+    "accuracy": 0.8648925281473899,
+    "macro_precision": 0.6903054741353801,
+    "macro_recall": 0.7865252828311379,
+    "macro_f1": 0.7268353390362959,
+    "weighted_f1": 0.8747518798688524
+  },
+  "is_production_model": false
+}

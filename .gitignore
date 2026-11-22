@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.DS_Store
+models/backup_*/
+reports/logs/
+uploads/*
+!uploads/.gitkeep
+.ipynb_checkpoints/

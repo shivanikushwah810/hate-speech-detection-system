@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Explainable AI — HateShield AI{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">{% endblock %}
+
+{% block content %}
+<div class="page-wide">
+  <div class="page-header">
+    <h1>// Explainable AI</h1>
+    <p>See which words pushed the model toward — or away from — Hate Speech, Offensive or Normal.</p>
+  </div>
+
+  <div id="banners"></div>
+
+  <div class="card">
+    <h3>Text to explain</h3>
+    <textarea id="xText" placeholder="Type or paste a sentence…" rows="3" maxlength="5000"></textarea>
+    <div class="toolbar" style="margin-top:1rem">
+      <button class="btn btn-primary" id="xBtn" onclick="explain()">🔍 Explain prediction</button>
+      <button class="btn btn-outline" onclick="loadExample(0)">Example 1</button>
+      <button class="btn btn-outline" onclick="loadExample(1)">Example 2</button>
+      <button class="btn btn-outline" onclick="loadExample(2)">Example 3</button>
+      <div id="xSpinner" class="spinner hidden"></div>
+    </div>
+    <p class="muted small" style="margin-top:0.8rem">Explains the app's <b>local</b> model (TF-IDF + Logistic Regression) and its rules. No API call is made.</p>
+  </div>
+
+  <div id="result"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script>
+const EXAMPLES = [
+  "I love spending time with my friends and family.",
+  "You are such a stupid idiot, shut up.",
+  "All those people should be removed from our country."
+];
+const BADGE = { 'Hate Speech': ['badge-hate', '🚨'], 'Offensive': ['badge-offensive', '⚠️'], 'Normal': ['badge-normal', '✅'] };
+let X = null, currentView = null;
+
+function loadExample(i) { document.getElementById('xText').value = EXAMPLES[i]; }
+
+(async function init() {
+  const st = await HS.api('/api/model-status');
+  if (st.ok && st.data.level !== 'ok') {
+    const s = st.data;
+    document.getElementById('banners').innerHTML = HS.banner(s.level === 'error' ? 'error' : 'warn',
+      `<strong>Production model status:</strong> ${HS.esc(s.message)}` +
+      (s.level === 'error' ? '<br><span class="small">Explanations below still show what the saved model weights say, but the running app is <b>not</b> using this ML model for its predictions right now.</span>' : ''));
+  }
+  document.getElementById('xText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) explain();
+  });
+})();
+
+async function explain() {
+  const text = document.getElementById('xText').value.trim();
+  const out = document.getElementById('result');
+  if (!text) { out.innerHTML = HS.banner('warn', 'Please type some text first.'); return; }
+  const btn = document.getElementById('xBtn'), sp = document.getElementById('xSpinner');
+  btn.disabled = true; sp.classList.remove('hidden');
+  const r = await HS.api('/api/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  btn.disabled = false; sp.classList.add('hidden');
+  if (!r.ok) { out.innerHTML = HS.banner('error', '<strong>Could not explain:</strong> ' + HS.esc(r.error)); return; }
+  X = r.data; currentView = X.default_view;
+  render();
+}
+
+function viewLabel(v) {
+  if (v.type === 'margin') return '⚖ ' + v.title;
+  return v.title.replace('Evidence for ', '');
+}
+
+function render() {
+  const f = X.final_pipeline, ml = X.ml_component;
+  let html = '';
+
+  // 1) verdict
+  html += '<div class="card"><h3>1 · What did the system decide?</h3>';
+  if (f) {
+    const [cls, icon] = BADGE[f.prediction] || ['badge-method', ''];
+    html += `<div class="final-box"><span class="badge ${cls}">${icon} ${HS.esc(f.prediction)}</span>
+      <span class="badge badge-method">Confidence ${Math.round(f.confidence * 100)}%</span>
+      <span class="badge badge-method">${f.decision_source === 'rule_override' ? '📏 Rule override' : f.decision_source === 'ml_and_rules_blend' ? '⚡ ML + rules blend' : '🔑 Keyword rules only'}</span></div>
+      <div class="banner ${f.decision_source === 'rule_override' ? 'warn' : 'info'}">${HS.esc(f.decision_source_text)}</div>`;
+  } else {
+    html += HS.banner('warn', 'The local pipeline could not produce a final label for this text.');
+  }
+  html += `<p class="muted small" style="margin-bottom:0.8rem">ML component alone (this is what the explanation below is about):</p>
+    ${HS.hbar('Hate Speech', ml.probabilities.hate_speech, HS.CLASS_COLORS['Hate Speech'])}
+    ${HS.hbar('Offensive', ml.probabilities.offensive, HS.CLASS_COLORS['Offensive'])}
+    ${HS.hbar('Normal', ml.probabilities.normal, HS.CLASS_COLORS['Normal'])}`;
+  if (f && !f.agrees_with_ml_component) {
+    html += HS.banner('warn', `The ML component alone would say <b>${HS.esc(ml.predicted)}</b>, but the final label is <b>${HS.esc(f.prediction)}</b> — the rules / blending changed the outcome.`);
+  }
+  if (!ml.active_in_app_pipeline) {
+    html += HS.banner('error', 'In this environment the app\'s predictor is <b>not actually using</b> the ML model (it falls back to keyword rules). The ML explanation shows the saved model weights only.');
+  }
+  html += '</div>';
+
+  // 2) plain-language summary
+  html += `<div class="card"><h3>2 · In plain words</h3><ul class="summary-list">${X.summary.map(s => `<li>${HS.esc(s)}</li>`).join('')}</ul></div>`;
+
+  // 3) chart
+  html += `<div class="card"><h3>3 · Which words influenced the ML model?</h3>
+    <div class="pill-tabs" id="tabs"></div>
+    <div class="legend"><span><i style="background:var(--pos)"></i>pushes TOWARD (positive)</span><span><i style="background:var(--neg)"></i>pushes AWAY (negative)</span></div>
+    <div id="chart"></div><div id="viewMath" class="formula"></div>
+    <h3 style="margin-top:1.4rem">Highlighted words (as the model sees them)</h3>
+    <div id="tokens" class="tokens"></div><div id="unknown" class="muted small" style="margin-top:0.6rem"></div></div>`;
+
+  // 4) rules
+  const re = X.rule_evidence;
+  const li = (title, arr) => `<li><b>${title}:</b> ${arr.length ? arr.map(a => `<span class="cat-tag">${HS.esc(a)}</span>`).join('') : '<span class="muted">none matched</span>'}</li>`;
+  html += `<div class="card"><h3>4 · Rule evidence (hand-written rules, not learned)</h3><div class="how-to-read"><ul>
+      ${li('Hard slur words', re.hard_slur_words)}${li('Offensive words', re.offensive_words)}${li('Targeted-hate pattern categories', re.targeted_pattern_categories)}
+    </ul><p style="margin-top:0.6rem">These come from the keyword lists and regex patterns in <code class="code-inline">utils/predictor.py</code>. Some override the ML model completely.</p></div></div>`;
+
+  // 5) method + limits
+  html += `<div class="card"><h3>5 · How this explanation works — and its limits</h3><div class="how-to-read">
+    <p><b>Method:</b> ${HS.esc(X.method.name)}. ${HS.esc(X.method.why_not_shap_or_lime)}</p>
+    <div class="formula">score(class) = intercept + Σ ( weight(class, word) × tfidf(word) )<br>contribution &gt; 0 → pushes toward the class · contribution &lt; 0 → pushes away</div>
+    <p>Exactness check: contributions add up to the model's scores — <b>${ml.decomposition_exact ? 'yes ✔' : 'NO ✘'}</b>.
+       ${ml.verification.checked ? `Matches scikit-learn's own predict_proba: <b>${ml.verification.matches_predict_proba ? 'yes ✔' : 'NO ✘'}</b>.` : HS.esc(ml.verification.note || '')}</p>
+    <p style="margin-top:0.6rem"><b>Limits (please read):</b></p>
+    <ul>${X.disclaimers.map(d => `<li>${HS.esc(d)}</li>`).join('')}</ul></div></div>`;
+
+  document.getElementById('result').innerHTML = html;
+  renderTabs(); renderView();
+  document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = X.views.map(v =>
+    `<button class="pill ${v.key === currentView ? 'active' : ''}" onclick="setView('${HS.esc(v.key)}')">${HS.esc(viewLabel(v))}</button>`).join('');
+}
+function setView(k) { currentView = k; renderTabs(); renderView(); }
+
+function renderView() {
+  const v = X.views.find(x => x.key === currentView);
+  const chart = document.getElementById('chart');
+  chart.innerHTML = `<p class="muted small" style="margin-bottom:0.7rem">${HS.esc(v.title)} — showing up to ${v.positive.length} positive and ${v.negative.length} negative terms (of ${v.n_positive_total} positive / ${v.n_negative_total} negative in total).</p>` + HS.divergingBars(v);
+  HS.animateBars(chart);
+
+  const sign = x => (x >= 0 ? '+' : '') + x.toFixed(3);
+  document.getElementById('viewMath').innerHTML = v.type === 'margin'
+    ? `Score gap = intercept gap ${sign(v.intercept)} + word effects ${sign(v.sum_contributions)} = <b>${sign(v.score)}</b>`
+    : `Score = intercept ${sign(v.intercept)} + word effects ${sign(v.sum_contributions)} = <b>${sign(v.score)}</b> → probability ${HS.pct(v.probability, 1)}`;
+
+  document.getElementById('tokens').innerHTML = HS.tokenChips(X.tokens, currentView);
+  const cov = X.coverage;
+  document.getElementById('unknown').innerHTML =
+    `${cov.known_tokens} of ${cov.total_tokens} words are in the model's vocabulary (${cov.vocab_size.toLocaleString()} terms).` +
+    (X.unknown_words.length ? ` Ignored unknown words: ${X.unknown_words.map(w => `<span class="cat-tag">${HS.esc(w)}</span>`).join('')}` : '') +
+    ' Highlighting shows single words only; multi-word phrases appear in the chart above.';
+}
+</script>
+{% endblock %}
